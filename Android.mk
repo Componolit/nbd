@@ -1,0 +1,15 @@
+LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE = libcliserv
+LOCAL_SRC_FILES = cliserv.c
+LOCAL_CFLAGS = -Iandroid
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE = nbd-client
+LOCAL_SRC_FILES = nbd-client.c
+LOCAL_CFLAGS = -Iandroid -DPROG_NAME=\"$(LOCAL_MODULE)\" -DPACKAGE_VERSION=\"\" -DPACKAGE_BUGREPORT=\"\" -DPACKAGE_STRING=\"\"
+LOCAL_STATIC_LIBRARIES = libcliserv
+LOCAL_LDFLAGS := -static
+include $(BUILD_EXECUTABLE)

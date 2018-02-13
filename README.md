@@ -1,3 +1,9 @@
+This is port of nbd-client to Android. To build it, run:
+
+```
+$ ndk-build APP_BUILD_SCRIPT=Android.mk
+```
+
 NBD README
 ==========
 
