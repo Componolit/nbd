@@ -15,6 +15,7 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <err.h>
 
 #if SIZEOF_UNSIGNED_SHORT_INT==4
 typedef unsigned short u32;
@@ -23,7 +24,7 @@ typedef unsigned int u32;
 #elif SIZEOF_UNSIGNED_LONG_INT==4
 typedef unsigned long u32;
 #else
-#error I need at least some 32-bit type
+typedef uint32_t u32;
 #endif
 
 #if SIZEOF_UNSIGNED_INT==8
@@ -33,7 +34,7 @@ typedef unsigned long u64;
 #elif SIZEOF_UNSIGNED_LONG_LONG_INT==8
 typedef unsigned long long u64;
 #else
-#error I need at least some 64-bit type
+typedef uint64_t u64;
 #endif
 
 #define __be32 u32
@@ -76,7 +77,7 @@ int set_nonblocking(int fd, int nb);
 void setmysockopt(int sock);
 void err_nonfatal(const char *s);
 
-void err(const char *s) G_GNUC_NORETURN;
+#define error(fmt,...) err(EXIT_FAILURE, fmt, ##__VA_ARGS__)
 
 void logging(const char* name);
 

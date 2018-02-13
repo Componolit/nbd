@@ -72,12 +72,6 @@ void err_nonfatal(const char *s) {
 	fprintf(stderr, "Error: %s\n", s1);
 }
 
-void err(const char *s) {
-	err_nonfatal(s);
-	fprintf(stderr, "Exiting.\n");
-	exit(EXIT_FAILURE);
-}
-
 void logging(const char* name) {
 #ifdef ISSERVER
 	openlog(name, LOG_PID, LOG_DAEMON);

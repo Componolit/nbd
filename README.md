@@ -1,3 +1,5 @@
+This is a non-offical port of nbd-client to Android.
+
 NBD README
 ==========
 

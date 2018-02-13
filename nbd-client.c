@@ -76,9 +76,9 @@ static int callback(struct nl_msg *msg, void *arg) {
 	ret = nla_parse(msg_attr, NBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret)
-		err("Invalid response from the kernel\n");
+		error("Invalid response from the kernel\n");
 	if (!msg_attr[NBD_ATTR_INDEX])
-		err("Did not receive index from the kernel\n");
+		error("Did not receive index from the kernel\n");
 	index = nla_get_u32(msg_attr[NBD_ATTR_INDEX]);
 	printf("Connected /dev/nbd%d\n", (int)index);
 	return NL_OK;
@@ -89,13 +89,13 @@ static struct nl_sock *get_nbd_socket(int *driver_id) {
 
 	socket = nl_socket_alloc();
 	if (!socket)
-		err("Couldn't allocate netlink socket\n");
+		error("Couldn't allocate netlink socket\n");
 
 	if (genl_connect(socket))
-		err("Couldn't connect to the generic netlink socket\n");
+		error("Couldn't connect to the generic netlink socket\n");
 	*driver_id = genl_ctrl_resolve(socket, "nbd");
 	if (*driver_id < 0)
-		err("Couldn't resolve the nbd netlink family, make sure the nbd module is loaded and your nbd driver supports the netlink interface.\n");
+		error("Couldn't resolve the nbd netlink family, make sure the nbd module is loaded and your nbd driver supports the netlink interface.\n");
 	return socket;
 }
 
@@ -112,7 +112,7 @@ static void netlink_configure(int index, int *sockfds, int num_connects,
 
 	msg = nlmsg_alloc();
 	if (!msg)
-		err("Couldn't allocate netlink message\n");
+		error("Couldn't allocate netlink message\n");
 	genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id, 0, 0,
 		    NBD_CMD_CONNECT, 0);
 	if (index >= 0)
@@ -124,22 +124,22 @@ static void netlink_configure(int index, int *sockfds, int num_connects,
 
 	sock_attr = nla_nest_start(msg, NBD_ATTR_SOCKETS);
 	if (!sock_attr)
-		err("Couldn't nest the sockets for our connection\n");
+		error("Couldn't nest the sockets for our connection\n");
 	for (i = 0; i < num_connects; i++) {
 		struct nlattr *sock_opt;
 		sock_opt = nla_nest_start(msg, NBD_SOCK_ITEM);
 		if (!sock_opt)
-			err("Couldn't nest the sockets for our connection\n");
+			error("Couldn't nest the sockets for our connection\n");
 		NLA_PUT_U32(msg, NBD_SOCK_FD, sockfds[i]);
 		nla_nest_end(msg, sock_opt);
 	}
 	nla_nest_end(msg, sock_attr);
 
 	if (nl_send_sync(socket, msg) < 0)
-		err("Failed to setup device, check dmesg\n");
+		error("Failed to setup device, check dmesg\n");
 	return;
 nla_put_failure:
-	err("Failed to create netlink message\n");
+	error("Failed to create netlink message\n");
 }
 
 static void netlink_disconnect(char *nbddev) {
@@ -150,25 +150,25 @@ static void netlink_disconnect(char *nbddev) {
 	int index = -1;
 	if (nbddev) {
 		if (sscanf(nbddev, "/dev/nbd%d", &index) != 1)
-			err("Invalid nbd device target\n");
+			error("Invalid nbd device target\n");
 	}
 	if (index < 0)
-		err("Invalid nbd device target\n");
+		error("Invalid nbd device target\n");
 
 	socket = get_nbd_socket(&driver_id);
 
 	msg = nlmsg_alloc();
 	if (!msg)
-		err("Couldn't allocate netlink message\n");
+		error("Couldn't allocate netlink message\n");
 	genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id, 0, 0,
 		    NBD_CMD_DISCONNECT, 0);
 	NLA_PUT_U32(msg, NBD_ATTR_INDEX, index);
 	if (nl_send_sync(socket, msg) < 0)
-		err("Failed to disconnect device, check dmsg\n");
+		error("Failed to disconnect device, check dmsg\n");
 	nl_socket_free(socket);
 	return;
 nla_put_failure:
-	err("Failed to create netlink message\n");
+	error("Failed to create netlink message\n");
 }
 #else
 static void netlink_configure(int index, int *sockfds, int num_connects,
@@ -243,7 +243,7 @@ int opennet(char *name, char* portstr, int sdp) {
 		else (ai->ai_family == AF_INET6)
 			ai->ai_family = AF_INET6_SDP;
 #else
-		err("Can't do SDP: I was not compiled with SDP support!");
+		error("Can't do SDP: I was not compiled with SDP support!");
 #endif
 	}
 
@@ -274,7 +274,7 @@ err:
 int openunix(const char *path) {
 	int sock;
 	struct sockaddr_un un_addr;
-	memset(&un_addr, 0, sizeof(un_addr));
+	memset((void *)&un_addr, 0, sizeof(un_addr));
 
 	un_addr.sun_family = AF_UNIX;
 	if (strnlen(path, sizeof(un_addr.sun_path)) == sizeof(un_addr.sun_path)) {
@@ -289,7 +289,7 @@ int openunix(const char *path) {
 		return -1;
 	};
 
-	if (connect(sock, &un_addr, sizeof(un_addr)) == -1) {
+	if (connect(sock, (const struct sockaddr *)&un_addr, sizeof(un_addr)) == -1) {
 		err_nonfatal("CONNECT failed");
 		close(sock);
 		return -1;
@@ -372,22 +372,22 @@ void ask_list(int sock) {
 	do {
 		memset(buf, 0, 1024);
 		if(read(sock, &magic, sizeof(magic)) < 0) {
-			err("Reading magic from server: %m");
+			error("Reading magic from server: %m");
 		}
 		if(read(sock, &opt_server, sizeof(opt_server)) < 0) {
-			err("Reading option: %m");
+			error("Reading option: %m");
 		}
 		if(read(sock, &reptype, sizeof(reptype)) <0) {
-			err("Reading reply from server: %m");
+			error("Reading reply from server: %m");
 		}
 		if(read(sock, &len, sizeof(len)) < 0) {
-			err("Reading length from server: %m");
+			error("Reading length from server: %m");
 		}
 		magic=ntohll(magic);
 		len=ntohl(len);
 		reptype=ntohl(reptype);
 		if(magic != rep_magic) {
-			err("Not enough magic from server");
+			error("Not enough magic from server");
 		}
 		if(reptype & NBD_REP_FLAG_ERROR) {
 			switch(reptype) {
@@ -410,7 +410,7 @@ void ask_list(int sock) {
 		} else {
 			if(reptype != NBD_REP_ACK) {
 				if(reptype != NBD_REP_SERVER) {
-					err("Server sent us a reply we don't understand!");
+					error("Server sent us a reply we don't understand!");
 				}
 				if(read(sock, &lenn, sizeof(lenn)) < 0) {
 					fprintf(stderr, "\nE: could not read export name length from server\n");
@@ -454,7 +454,7 @@ void parse_sizes(char *buf, uint64_t *size, uint16_t *flags) {
 
 	if ((*size>>12) > (uint64_t)~0UL) {
 		printf("size = %luMB", (unsigned long)(*size>>20));
-		err("Exported device is too big for me. Get 64-bit machine :-(\n");
+		error("Exported device is too big for me. Get 64-bit machine :-(\n");
 	} else {
 		printf("size = %luMB", (unsigned long)(*size>>20));
 	}
@@ -471,13 +471,13 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 	printf("Negotiation: ");
 	readit(sock, buf, 8);
 	if (strcmp(buf, INIT_PASSWD))
-		err("INIT_PASSWD bad");
+		error("INIT_PASSWD bad");
 	printf(".");
 	readit(sock, &magic, sizeof(magic));
 	magic = ntohll(magic);
 	if (magic != opts_magic) {
 		if(magic == cliserv_magic) {
-			err("It looks like you're trying to connect to an oldstyle server. This is no longer supported since nbd 3.10.");
+			error("It looks like you're trying to connect to an oldstyle server. This is no longer supported since nbd 3.10.");
 		}
 	}
 	printf(".");
@@ -496,7 +496,7 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 	}
 	client_flags = htonl(client_flags);
 	if (write(sock, &client_flags, sizeof(client_flags)) < 0)
-		err("Failed/2.1: %m");
+		error("Failed/2.1: %m");
 
 #if HAVE_GNUTLS && !defined(NOTLS)
         /* TLS */
@@ -510,27 +510,27 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 		send_request(sock, NBD_OPT_STARTTLS, 0, NULL);
 
 		if (read(sock, &tmp64, sizeof(tmp64)) < 0)
-			err("Could not read cliserv_magic: %m");
+			error("Could not read cliserv_magic: %m");
 		tmp64 = ntohll(tmp64);
 		if (tmp64 != NBD_OPT_REPLY_MAGIC) {
-			err("reply magic does not match");
+			error("reply magic does not match");
 		}
 		if (read(sock, &tmp32, sizeof(tmp32)) < 0)
-			err("Could not read option type: %m");
+			error("Could not read option type: %m");
 		tmp32 = ntohl(tmp32);
 		if (tmp32 != NBD_OPT_STARTTLS)
-			err("Reply to wrong option");
+			error("Reply to wrong option");
 		if (read(sock, &tmp32, sizeof(tmp32)) < 0)
-			err("Could not read option reply type: %m");
+			error("Could not read option reply type: %m");
 		tmp32 = ntohl(tmp32);
 		if (tmp32 != NBD_REP_ACK) {
-			err("Option reply type != NBD_REP_ACK");
+			error("Option reply type != NBD_REP_ACK");
 		}
-		if (read(sock, &tmp32, sizeof(tmp32)) < 0) err(
+		if (read(sock, &tmp32, sizeof(tmp32)) < 0) error(
 			"Could not read option data length: %m");
 		tmp32 = ntohl(tmp32);
 		if (tmp32 != 0) {
-			err("Option reply data length != 0");
+			error("Option reply data length != 0");
 		}
 		s = tlssession_new(0,
 				   keyfile,
@@ -548,22 +548,22 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 				   NULL // opaque
 			);
 		if (!s)
-			err("Cannot establish TLS session");
+			error("Cannot establish TLS session");
 
 		if (socketpair(AF_UNIX, SOCK_STREAM, 0, plainfd) < 0)
-			err("Cannot get socket pair");
+			error("Cannot get socket pair");
 
 		if (set_nonblocking(plainfd[0], 0) <0 ||
 		    set_nonblocking(plainfd[1], 0) <0 ||
 		    set_nonblocking(sock, 0) <0) {
 			close(plainfd[0]);
 			close(plainfd[1]);
-			err("Cannot set socket options");
+			error("Cannot set socket options");
 		}
 
 		ret = fork();
 		if (ret < 0)
-			err("Could not fork");
+			error("Could not fork");
 		else if (ret == 0) {
 			// we are the child
 			if (daemon(0, 0) < 0) {
@@ -585,7 +585,7 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 	}
 #else
 	if (keyfile) {
-		err("TLS requested but support not compiled in");
+		error("TLS requested but support not compiled in");
 	}
 #endif
 
@@ -617,16 +617,16 @@ void negotiate(int *sockp, u64 *rsize64, uint16_t *flags, char* name, uint32_t n
 					return;
 				case NBD_REP_ERR_POLICY:
 					if(rep->datasize > 0) {
-						err("Connection not allowed by server policy. Server said: %s", rep->data);
+						error("Connection not allowed by server policy. Server said: %s", rep->data);
 					} else {
-						err("Connection not allowed by server policy.");
+						error("Connection not allowed by server policy.");
 					}
 					exit(EXIT_FAILURE);
 				default:
 					if(rep->datasize > 0) {
-						err("Unknown error returned by server. Server said: %s", rep->data);
+						error("Unknown error returned by server. Server said: %s", rep->data);
 					} else {
-						err("Unknown error returned by server.");
+						error("Unknown error returned by server.");
 					}
 					free(rep);
 					exit(EXIT_FAILURE);
@@ -793,7 +793,7 @@ void setsizes(int nbd, u64 size64, int blocksize, u32 flags) {
 	int read_only = (flags & NBD_FLAG_READ_ONLY) ? 1 : 0;
 
 	if (size64>>12 > (uint64_t)~0UL)
-		err("Device too large.\n");
+		error("Device too large.\n");
 	else {
 		int tmp_blocksize = 4096;
 		if (size64 / (u64)blocksize <= (uint64_t)~0UL)
@@ -801,16 +801,16 @@ void setsizes(int nbd, u64 size64, int blocksize, u32 flags) {
 		if (ioctl(nbd, NBD_SET_BLKSIZE, tmp_blocksize) < 0) {
 			fprintf(stderr, "Failed to set blocksize %d\n",
 				tmp_blocksize);
-			err("Ioctl/1.1a failed: %m\n");
+			error("Ioctl/1.1a failed: %m\n");
 		}
 		size = (unsigned long)(size64 / (u64)tmp_blocksize);
 		if (ioctl(nbd, NBD_SET_SIZE_BLOCKS, size) < 0)
-			err("Ioctl/1.1b failed: %m\n");
+			error("Ioctl/1.1b failed: %m\n");
 		if (tmp_blocksize != blocksize) {
 			if (ioctl(nbd, NBD_SET_BLKSIZE, (unsigned long)blocksize) < 0) {
 				fprintf(stderr, "Failed to set blocksize %d\n",
 					blocksize);
-				err("Ioctl/1.1c failed: %m\n");
+				error("Ioctl/1.1c failed: %m\n");
 			}
 		}
 		fprintf(stderr, "bs=%d, sz=%" PRIu64 " bytes\n", blocksize, (u64)tmp_blocksize * size);
@@ -822,13 +822,13 @@ void setsizes(int nbd, u64 size64, int blocksize, u32 flags) {
 	ioctl(nbd, NBD_SET_FLAGS, (unsigned long) flags);
 
 	if (ioctl(nbd, BLKROSET, (unsigned long) &read_only) < 0)
-		err("Unable to set read-only attribute for device");
+		error("Unable to set read-only attribute for device");
 }
 
 void set_timeout(int nbd, int timeout) {
 	if (timeout) {
 		if (ioctl(nbd, NBD_SET_TIMEOUT, (unsigned long)timeout) < 0)
-			err("Ioctl NBD_SET_TIMEOUT failed: %m\n");
+			error("Ioctl NBD_SET_TIMEOUT failed: %m\n");
 		fprintf(stderr, "timeout=%d\n", timeout);
 	}
 }
@@ -836,9 +836,9 @@ void set_timeout(int nbd, int timeout) {
 void finish_sock(int sock, int nbd, int swap) {
 	if (ioctl(nbd, NBD_SET_SOCK, sock) < 0) {
 		if (errno == EBUSY)
-			err("Kernel doesn't support multiple connections\n");
+			error("Kernel doesn't support multiple connections\n");
 		else
-			err("Ioctl NBD_SET_SOCK failed: %m\n");
+			error("Ioctl NBD_SET_SOCK failed: %m\n");
 	}
 
 #ifndef __ANDROID__
@@ -900,13 +900,13 @@ void disconnect(char* device) {
 	int nbd = open(device, O_RDWR);
 
 	if (nbd < 0)
-		err("Cannot open NBD: %m\nPlease ensure the 'nbd' module is loaded.");
+		error("Cannot open NBD: %m\nPlease ensure the 'nbd' module is loaded.");
 	printf("disconnect, ");
 	if (ioctl(nbd, NBD_DISCONNECT)<0)
-		err("Ioctl failed: %m\n");
+		error("Ioctl failed: %m\n");
 	printf("sock, ");
 	if (ioctl(nbd, NBD_CLEAR_SOCK)<0)
-		err("Ioctl failed: %m\n");
+		error("Ioctl failed: %m\n");
 	printf("done\n");
 }
 
@@ -1118,7 +1118,7 @@ int main(int argc, char *argv[]) {
 	}
 #ifdef __ANDROID__
   if (swap)
-    err("swap option unsupported on Android because mlockall is unsupported.");
+    error("swap option unsupported on Android because mlockall is unsupported.");
 #endif
 	if(hostname) {
 		if((!name || !nbddev) && !(opts & NBDC_DO_LIST)) {
@@ -1157,13 +1157,13 @@ int main(int argc, char *argv[]) {
 	if(!(opts & NBDC_DO_LIST) && !netlink) {
 		nbd = open(nbddev, O_RDWR);
 		if (nbd < 0)
-			err("Cannot open NBD: %m\nPlease ensure the 'nbd' module is loaded.");
+			error("Cannot open NBD: %m\nPlease ensure the 'nbd' module is loaded.");
 	}
 
 	if (netlink) {
 		sockfds = malloc(sizeof(int) * num_connections);
 		if (!sockfds)
-			err("Cannot allocate the socket fd's array");
+			error("Cannot allocate the socket fd's array");
 	}
 
 	for (i = 0; i < num_connections; i++) {
@@ -1200,7 +1200,7 @@ int main(int argc, char *argv[]) {
 		int index = -1;
 		if (nbddev) {
 			if (sscanf(nbddev, "/dev/nbd%d", &index) != 1)
-				err("Invalid nbd device target\n");
+				error("Invalid nbd device target\n");
 		}
 		netlink_configure(index, sockfds, num_connections,
 				  size64, blocksize, flags, timeout);
@@ -1211,7 +1211,7 @@ int main(int argc, char *argv[]) {
 #ifndef NOFORK
 	if(!nofork) {
 		if (daemon(0,0) < 0)
-			err("Cannot detach from terminal");
+			error("Cannot detach from terminal");
 	}
 
 	memset(&sa, 0, sizeof(sa));
@@ -1287,10 +1287,10 @@ int main(int argc, char *argv[]) {
 					}
 					nbd = open(nbddev, O_RDWR);
 					if (nbd < 0)
-						err("Cannot open NBD: %m");
+						error("Cannot open NBD: %m");
 					negotiate(&sock, &new_size, &new_flags, name, needed_flags, cflags, opts, certfile, keyfile, cacertfile, tlshostname, tls);
 					if (size64 != new_size) {
-						err("Size of the device changed. Bye");
+						error("Size of the device changed. Bye");
 					}
 					setsizes(nbd, size64, blocksize,
 								new_flags);
